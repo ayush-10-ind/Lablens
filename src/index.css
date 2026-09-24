@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0B1220;
+  --surface: #141C2F;
+  --text: #F2F5FA;
+  --muted: #9AA6BD;
+  --accent: #3DD6C6;
+  --ok: #39D98A;
+  --warn: #FFB84D;
+  --error: #FF5C6C;
+  --battery: #F5C542;
+  --resistor: #C08A5B;
+  --led: #FF6B9E;
+  --switch: #7AA2FF;
+  --breadboard: #B8C2D6;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
