@@ -7,3 +7,4 @@ export * from './builder';
 export * from './rules';
 export * from './engine';
 export * from './sceneGate';
+export * from './useCircuitPipeline';

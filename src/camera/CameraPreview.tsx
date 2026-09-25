@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { CameraErrorInfo, CameraStatus, VideoDimensions } from './types';
 import { CAMERA_CONFIG, UI_CONFIG } from '../config';
 import { useVisionWorker } from '../vision';
+import { useCircuitPipeline, COMPONENT_THEME_TOKENS } from '../circuit';
 
 export interface CameraPreviewProps {
   status: CameraStatus;
@@ -59,6 +60,11 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
 
   const { stats: workerStats, latestTracks, processFrame, sendBurstTest } = useVisionWorker(status === 'ready');
 
+  // Downstream circuit pipeline: SceneGate (R9) -> CircuitBuilder -> RuleEngine
+  const { gateStatus, ruleOutput, labels, primaryHint } = useCircuitPipeline(
+    status === 'ready' ? latestTracks : []
+  );
+
   // Development frame pumping: send video frames to vision worker at UI_CONFIG.TARGET_FPS (~10 FPS = 100ms)
   useEffect(() => {
     if (status !== 'ready') return;
@@ -100,7 +106,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         aria-label="Live camera preview"
       />
 
-      {/* 2. Development Calibration Overlay (Pure vector SVG, never reads/serializes camera pixels) */}
+      {/* 2. AR Overlay Layer (Pure vector SVG, never reads/serializes camera pixels) */}
       {status === 'ready' && (
         <div className="absolute inset-0 pointer-events-none">
           <svg
@@ -139,45 +145,70 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
               strokeWidth="0.5"
             />
 
-            {/* Dev visualization of tracked detections returned by Worker */}
-            {latestTracks.map((track) => (
-              <g key={track.id}>
-                <rect
-                  x={track.normalizedBox.x * 100}
-                  y={track.normalizedBox.y * 100}
-                  width={track.normalizedBox.w * 100}
-                  height={track.normalizedBox.h * 100}
-                  fill="none"
-                  stroke={track.isStable ? 'var(--ok)' : 'var(--warn)'}
-                  strokeWidth="0.5"
-                  strokeDasharray={track.isStable ? undefined : '1.5 1.5'}
-                  rx="1"
-                />
-                <text
-                  x={track.normalizedBox.x * 100 + 0.5}
-                  y={Math.max(2, track.normalizedBox.y * 100 - 1)}
-                  fill={track.isStable ? 'var(--ok)' : 'var(--warn)'}
-                  fontSize="2.2"
-                  fontFamily="monospace"
-                  fontWeight="bold"
-                >
-                  {track.type} {Math.round(track.confidence * 100)}%
-                </text>
-              </g>
-            ))}
+            {/* R9 Gated Component Labels (ZERO rendered when SceneGate is idle) */}
+            {labels.map((comp) => {
+              const colorToken = COMPONENT_THEME_TOKENS[comp.type] || 'var(--accent)';
+              const normBox =
+                'normalizedBox' in comp && (comp as any).normalizedBox
+                  ? (comp as any).normalizedBox
+                  : {
+                      x: dimensions ? comp.box.x / dimensions.width : comp.box.x / 1280,
+                      y: dimensions ? comp.box.y / dimensions.height : comp.box.y / 720,
+                      w: dimensions ? comp.box.w / dimensions.width : comp.box.w / 1280,
+                      h: dimensions ? comp.box.h / dimensions.height : comp.box.h / 720,
+                    };
+
+              return (
+                <g key={comp.id}>
+                  <rect
+                    x={normBox.x * 100}
+                    y={normBox.y * 100}
+                    width={normBox.w * 100}
+                    height={normBox.h * 100}
+                    fill="none"
+                    stroke={colorToken}
+                    strokeWidth="0.5"
+                    rx="1"
+                  />
+                  <text
+                    x={normBox.x * 100 + 0.5}
+                    y={Math.max(2.5, normBox.y * 100 - 1)}
+                    fill={colorToken}
+                    fontSize="2.2"
+                    fontFamily="monospace"
+                    fontWeight="bold"
+                  >
+                    {comp.type} {Math.round(comp.confidence * 100)}%
+                  </text>
+                </g>
+              );
+            })}
           </svg>
 
+          {/* Calm Hint Strip (Single-line prompt, calm feedback) */}
+          {primaryHint && (
+            <div className="absolute bottom-16 left-1/2 -translate-x-1/2 max-w-sm w-full px-4 pointer-events-none">
+              <div className="mx-auto px-4 py-2 rounded-chip bg-surface/90 border border-muted/30 text-xs font-medium text-text text-center shadow-lg backdrop-blur-md">
+                {primaryHint}
+              </div>
+            </div>
+          )}
+
           {/* Dev calibration and Worker diagnostic info tag */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-chip bg-surface/90 border border-muted/30 text-xs font-mono text-muted flex items-center space-x-2 shadow-lg backdrop-blur-sm whitespace-nowrap">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-chip bg-surface/90 border border-muted/30 text-xs font-mono text-muted flex items-center space-x-2 shadow-lg backdrop-blur-sm whitespace-nowrap">
             <span
               className={`h-2 w-2 rounded-full ${
-                workerStats.workerStatus === 'ready' ? 'bg-accent' : 'bg-warn'
+                gateStatus.state === 'lab'
+                  ? 'bg-ok'
+                  : workerStats.workerStatus === 'ready'
+                  ? 'bg-accent'
+                  : 'bg-warn'
               }`}
             />
             <span>
-              DEV • {dimensions ? `${dimensions.width}×${dimensions.height}` : 'calibrating...'} | Worker:{' '}
-              {workerStats.workerStatus} | {workerStats.framesProcessed}ok/{workerStats.framesDropped}drop (
-              {workerStats.lastDurationMs}ms) | {latestTracks.length} tracks
+              DEV • R9: {gateStatus.state} ({gateStatus.consecutiveStableFrames}/5) | Worker:{' '}
+              {workerStats.workerStatus} | {workerStats.framesProcessed}ok/{workerStats.framesDropped}drop |{' '}
+              {labels.length} labels
             </span>
             <button
               type="button"
@@ -193,22 +224,55 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
 
       {/* 3. Top Navigation & Status Bar */}
       <header className="relative z-10 p-4 pt-safe flex items-center justify-between pointer-events-auto">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-chip bg-surface/80 border border-muted/20 backdrop-blur-md text-xs font-medium">
-          {status === 'ready' ? (
-            <>
-              <span className="h-2 w-2 rounded-full bg-ok animate-pulse" />
-              <span className="text-text">Camera Active</span>
-            </>
-          ) : status === 'requesting' ? (
-            <>
-              <span className="h-2 w-2 rounded-full bg-warn animate-pulse" />
-              <span className="text-text">Opening Camera...</span>
-            </>
-          ) : (
-            <>
-              <span className="h-2 w-2 rounded-full bg-error" />
-              <span className="text-text">Camera Offline</span>
-            </>
+        <div className="flex items-center space-x-2">
+          {/* Camera Status Pill */}
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-chip bg-surface/80 border border-muted/20 backdrop-blur-md text-xs font-medium">
+            {status === 'ready' ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-ok animate-pulse" />
+                <span className="text-text">Camera Active</span>
+              </>
+            ) : status === 'requesting' ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-warn animate-pulse" />
+                <span className="text-text">Opening Camera...</span>
+              </>
+            ) : (
+              <>
+                <span className="h-2 w-2 rounded-full bg-error" />
+                <span className="text-text">Camera Offline</span>
+              </>
+            )}
+          </div>
+
+          {/* Circuit Status Chip (Rendered only when SceneGate is in Lab mode and rules evaluate) */}
+          {ruleOutput && (
+            <div
+              className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-chip bg-surface/90 border backdrop-blur-md text-xs font-semibold ${
+                ruleOutput.status === 'ok'
+                  ? 'border-ok/40 text-ok'
+                  : ruleOutput.status === 'warning'
+                  ? 'border-warn/40 text-warn'
+                  : 'border-error/40 text-error'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  ruleOutput.status === 'ok'
+                    ? 'bg-ok'
+                    : ruleOutput.status === 'warning'
+                    ? 'bg-warn'
+                    : 'bg-error'
+                }`}
+              />
+              <span>
+                {ruleOutput.status === 'ok'
+                  ? 'Circuit OK'
+                  : ruleOutput.status === 'warning'
+                  ? 'Circuit Warning'
+                  : 'Circuit Error'}
+              </span>
+            </div>
           )}
         </div>
 
