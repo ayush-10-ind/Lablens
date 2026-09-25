@@ -66,3 +66,22 @@ export const UI_CONFIG = {
   /** Assistant answer target word count limit */
   MAX_ANSWER_WORDS: 60,
 } as const;
+
+export const CAMERA_CONFIG = {
+  /** Preferred facing mode: rear/environment camera (docs/architecture.md §4) */
+  FACING_MODE: 'environment',
+
+  /** Ideal capture width in pixels (docs/architecture.md §4) */
+  IDEAL_WIDTH: 1280,
+
+  /** Ideal capture height in pixels (docs/architecture.md §4) */
+  IDEAL_HEIGHT: 720,
+
+  /** Normalized coordinates for the SVG dev calibration test rectangle [0.0, 1.0] */
+  DEV_CALIBRATION_RECT: {
+    x: 0.15,
+    y: 0.25,
+    width: 0.70,
+    height: 0.50,
+  },
+} as const;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DETECTION_CONFIG, SCENE_GATE_CONFIG, UI_CONFIG } from './config';
+import { DETECTION_CONFIG, SCENE_GATE_CONFIG, UI_CONFIG, CAMERA_CONFIG } from './config';
 
 describe('LabLens Configuration Contract (docs/rules.md §B6)', () => {
   it('strictly adheres to detection thresholds defined in docs/rules.md §B6', () => {
@@ -55,5 +55,20 @@ describe('LabLens Configuration Contract (docs/rules.md §B6)', () => {
     // Assistant question truncated to 300 chars, answers ~60 words
     expect(UI_CONFIG.MAX_QUESTION_LENGTH).toBe(300);
     expect(UI_CONFIG.MAX_ANSWER_WORDS).toBe(60);
+  });
+
+  it('adheres to camera configuration constraints from docs/architecture.md §4', () => {
+    // Camera facing mode: 'environment' (rear camera)
+    expect(CAMERA_CONFIG.FACING_MODE).toBe('environment');
+
+    // Camera ideal resolution: 1280x720
+    expect(CAMERA_CONFIG.IDEAL_WIDTH).toBe(1280);
+    expect(CAMERA_CONFIG.IDEAL_HEIGHT).toBe(720);
+
+    // Dev calibration test rect within [0, 1] normalized bounds
+    expect(CAMERA_CONFIG.DEV_CALIBRATION_RECT.x).toBeGreaterThanOrEqual(0);
+    expect(CAMERA_CONFIG.DEV_CALIBRATION_RECT.y).toBeGreaterThanOrEqual(0);
+    expect(CAMERA_CONFIG.DEV_CALIBRATION_RECT.x + CAMERA_CONFIG.DEV_CALIBRATION_RECT.width).toBeLessThanOrEqual(1);
+    expect(CAMERA_CONFIG.DEV_CALIBRATION_RECT.y + CAMERA_CONFIG.DEV_CALIBRATION_RECT.height).toBeLessThanOrEqual(1);
   });
 });
