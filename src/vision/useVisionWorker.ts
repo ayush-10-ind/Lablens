@@ -99,10 +99,28 @@ export function useVisionWorker(enabled = true): UseVisionWorkerReturn {
       setStats((s) => ({ ...s, workerStatus: 'error', lastError: err.message }));
     };
 
+    // Determine initial fake scenario for development/testing (supports ?scenario=canonical|single|empty)
+    let initialScenario: 'canonical_circuit' | 'single_resistor' | 'empty' = 'canonical_circuit';
+    if (typeof window !== 'undefined' && window.location?.search) {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const scenarioParam = params.get('scenario');
+        if (scenarioParam === 'single' || scenarioParam === 'single_resistor') {
+          initialScenario = 'single_resistor';
+        } else if (scenarioParam === 'empty') {
+          initialScenario = 'empty';
+        } else if (scenarioParam === 'canonical' || scenarioParam === 'canonical_circuit') {
+          initialScenario = 'canonical_circuit';
+        }
+      } catch {
+        // Fallback safely to canonical_circuit in environments with non-standard URL/location
+      }
+    }
+
     // Initialize worker with default settings
     worker.postMessage({
       type: 'INIT',
-      config: { fakeScenario: 'canonical_circuit' },
+      config: { fakeScenario: initialScenario },
     });
 
     return () => {

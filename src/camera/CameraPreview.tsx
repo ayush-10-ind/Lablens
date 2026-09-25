@@ -1,8 +1,10 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { CameraErrorInfo, CameraStatus, VideoDimensions } from './types';
 import { CAMERA_CONFIG, UI_CONFIG } from '../config';
 import { useVisionWorker } from '../vision';
 import { useCircuitPipeline, COMPONENT_THEME_TOKENS } from '../circuit';
+import { NotRecognizedSheet } from './NotRecognizedSheet';
+import { useNotRecognizedSheet } from './useNotRecognizedSheet';
 
 export interface CameraPreviewProps {
   status: CameraStatus;
@@ -12,6 +14,7 @@ export interface CameraPreviewProps {
   onRetry: () => void;
   onClose: () => void;
   onDimensionsUpdate: (dims: VideoDimensions) => void;
+  onSelectExperiment?: (experimentId: string) => void;
 }
 
 export const CameraPreview: React.FC<CameraPreviewProps> = ({
@@ -22,8 +25,10 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   onRetry,
   onClose,
   onDimensionsUpdate,
+  onSelectExperiment,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [experimentNotice, setExperimentNotice] = useState<string | null>(null);
 
   // Attach MediaStream to <video> when available
   useEffect(() => {
@@ -64,6 +69,23 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   const { gateStatus, ruleOutput, labels, primaryHint } = useCircuitPipeline(
     status === 'ready' ? latestTracks : []
   );
+
+  // Not Recognized sheet (docs/design.md §3.8): appears when idle with 0 components for 2s
+  const { isSheetVisible, dismissSheet } = useNotRecognizedSheet({
+    cameraReady: status === 'ready',
+    workerReady: workerStats.workerStatus === 'ready',
+    gateState: gateStatus.state,
+    distinctCount: gateStatus.distinctCount,
+  });
+
+  const handleSelectExperiment = (experimentId: string) => {
+    if (onSelectExperiment) {
+      onSelectExperiment(experimentId);
+    } else {
+      setExperimentNotice('Virtual Builder is coming in Phase 3.');
+      setTimeout(() => setExperimentNotice(null), 3500);
+    }
+  };
 
   // Development frame pumping: send video frames to vision worker at UI_CONFIG.TARGET_FPS (~10 FPS = 100ms)
   useEffect(() => {
@@ -185,8 +207,8 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
             })}
           </svg>
 
-          {/* Calm Hint Strip (Single-line prompt, calm feedback) */}
-          {primaryHint && (
+          {/* Calm Hint Strip (Single-line prompt, calm feedback; suppressed when Not Recognized sheet is open) */}
+          {primaryHint && !isSheetVisible && (
             <div className="absolute bottom-16 left-1/2 -translate-x-1/2 max-w-sm w-full px-4 pointer-events-none">
               <div className="mx-auto px-4 py-2 rounded-chip bg-surface/90 border border-muted/30 text-xs font-medium text-text text-center shadow-lg backdrop-blur-md">
                 {primaryHint}
@@ -370,6 +392,14 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
           </div>
         </div>
       )}
+
+      {/* 6. Not Recognized Bottom Sheet (docs/design.md §3.8) */}
+      <NotRecognizedSheet
+        isOpen={status === 'ready' && isSheetVisible}
+        onTryAgain={dismissSheet}
+        onSelectExperiment={handleSelectExperiment}
+        notice={experimentNotice}
+      />
     </div>
   );
 };

@@ -44,6 +44,9 @@ describe('LabLens Configuration Contract (docs/rules.md §B6)', () => {
     // Status debounce: 500 ms
     expect(UI_CONFIG.STATUS_DEBOUNCE_MS).toBe(500);
 
+    // Not recognized sheet delay: 2000 ms (docs/design.md §3.8, docs/architecture.md §5.0)
+    expect(UI_CONFIG.NOT_RECOGNIZED_DELAY_MS).toBe(2000);
+
     // Target FPS: 10 FPS
     expect(UI_CONFIG.TARGET_FPS).toBe(10);
 

@@ -48,6 +48,9 @@ export const UI_CONFIG = {
   /** Debounce delay before circuit status change is committed (500 ms) */
   STATUS_DEBOUNCE_MS: 500,
 
+  /** Milliseconds of continuous zero-component idle before showing Not Recognized sheet (2 seconds) */
+  NOT_RECOGNIZED_DELAY_MS: 2000,
+
   /** Target frame rate in FPS (approx 10 FPS = 100ms per frame) */
   TARGET_FPS: 10,
 
