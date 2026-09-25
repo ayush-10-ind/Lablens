@@ -16,6 +16,9 @@ describe('LabLens Configuration Contract (docs/rules.md §B6)', () => {
     // Track expiry: 10 missed frames
     expect(DETECTION_CONFIG.TRACK_EXPIRY_FRAMES).toBe(10);
 
+    // Track association IoU threshold: 0.3
+    expect(DETECTION_CONFIG.TRACK_IOU_MATCH_THRESHOLD).toBe(0.3);
+
     // Box smoothing (EMA α): 0.4
     expect(DETECTION_CONFIG.BOX_SMOOTHING_EMA_ALPHA).toBe(0.4);
 

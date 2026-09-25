@@ -23,6 +23,9 @@ export const DETECTION_CONFIG = {
   /** Number of consecutive missed frames before a track expires */
   TRACK_EXPIRY_FRAMES: 10,
 
+  /** IoU threshold for matching candidate detections to existing tracks */
+  TRACK_IOU_MATCH_THRESHOLD: 0.3,
+
   /** Detections with confidence below this threshold show dashed outline and '?' */
   LOW_CONFIDENCE_THRESHOLD: 0.60,
 } as const;

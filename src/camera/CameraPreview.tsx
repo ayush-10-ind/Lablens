@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { CameraErrorInfo, CameraStatus, VideoDimensions } from './types';
-import { CAMERA_CONFIG } from '../config';
+import { CAMERA_CONFIG, UI_CONFIG } from '../config';
+import { useVisionWorker } from '../vision';
 
 export interface CameraPreviewProps {
   status: CameraStatus;
@@ -55,6 +56,26 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   const handleLoadedMetadata = () => {
     updateDimensionsFromVideo();
   };
+
+  const { stats: workerStats, latestTracks, processFrame, sendBurstTest } = useVisionWorker(status === 'ready');
+
+  // Development frame pumping: send video frames to vision worker at UI_CONFIG.TARGET_FPS (~10 FPS = 100ms)
+  useEffect(() => {
+    if (status !== 'ready') return;
+
+    let isSubscribed = true;
+    const intervalMs = Math.round(1000 / UI_CONFIG.TARGET_FPS);
+
+    const intervalId = setInterval(() => {
+      if (!isSubscribed || !videoRef.current) return;
+      void processFrame(videoRef.current);
+    }, intervalMs);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(intervalId);
+    };
+  }, [status, processFrame]);
 
   const handleCanPlay = () => {
     updateDimensionsFromVideo();
@@ -117,14 +138,55 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
               stroke="var(--accent)"
               strokeWidth="0.5"
             />
+
+            {/* Dev visualization of tracked detections returned by Worker */}
+            {latestTracks.map((track) => (
+              <g key={track.id}>
+                <rect
+                  x={track.normalizedBox.x * 100}
+                  y={track.normalizedBox.y * 100}
+                  width={track.normalizedBox.w * 100}
+                  height={track.normalizedBox.h * 100}
+                  fill="none"
+                  stroke={track.isStable ? 'var(--ok)' : 'var(--warn)'}
+                  strokeWidth="0.5"
+                  strokeDasharray={track.isStable ? undefined : '1.5 1.5'}
+                  rx="1"
+                />
+                <text
+                  x={track.normalizedBox.x * 100 + 0.5}
+                  y={Math.max(2, track.normalizedBox.y * 100 - 1)}
+                  fill={track.isStable ? 'var(--ok)' : 'var(--warn)'}
+                  fontSize="2.2"
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                >
+                  {track.type} {Math.round(track.confidence * 100)}%
+                </text>
+              </g>
+            ))}
           </svg>
 
-          {/* Dev calibration info tag */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-chip bg-surface/90 border border-muted/30 text-xs font-mono text-muted flex items-center space-x-2 shadow-lg backdrop-blur-sm">
-            <span className="h-2 w-2 rounded-full bg-accent" />
+          {/* Dev calibration and Worker diagnostic info tag */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-chip bg-surface/90 border border-muted/30 text-xs font-mono text-muted flex items-center space-x-2 shadow-lg backdrop-blur-sm whitespace-nowrap">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                workerStats.workerStatus === 'ready' ? 'bg-accent' : 'bg-warn'
+              }`}
+            />
             <span>
-              DEV CALIBRATION • {dimensions ? `${dimensions.width}×${dimensions.height}` : 'calibrating...'}
+              DEV • {dimensions ? `${dimensions.width}×${dimensions.height}` : 'calibrating...'} | Worker:{' '}
+              {workerStats.workerStatus} | {workerStats.framesProcessed}ok/{workerStats.framesDropped}drop (
+              {workerStats.lastDurationMs}ms) | {latestTracks.length} tracks
             </span>
+            <button
+              type="button"
+              onClick={() => videoRef.current && void sendBurstTest(videoRef.current)}
+              className="ml-2 px-2 py-0.5 rounded bg-surface hover:bg-muted/20 text-[10px] text-accent pointer-events-auto border border-accent/40 transition-colors"
+              title="Send 2 frames concurrently to verify worker immediately drops the busy frame"
+            >
+              Test Drop
+            </button>
           </div>
         </div>
       )}
