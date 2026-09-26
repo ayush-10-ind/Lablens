@@ -5,6 +5,7 @@ import { useVisionWorker } from '../vision';
 import { useCircuitPipeline, COMPONENT_THEME_TOKENS } from '../circuit';
 import { NotRecognizedSheet } from './NotRecognizedSheet';
 import { useNotRecognizedSheet } from './useNotRecognizedSheet';
+import { GuideView } from '../guide3d';
 
 export interface CameraPreviewProps {
   status: CameraStatus;
@@ -29,6 +30,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [experimentNotice, setExperimentNotice] = useState<string | null>(null);
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
 
   // Attach MediaStream to <video> when available
   useEffect(() => {
@@ -241,6 +243,23 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
               Test Drop
             </button>
           </div>
+
+          {/* Bottom Action Bar: Show me (3D Guide) - Available strictly in Lab mode */}
+          {gateStatus.state === 'lab' && (
+            <div className="absolute bottom-16 right-4 z-20 pointer-events-auto">
+              <button
+                type="button"
+                onClick={() => setIsGuideOpen(true)}
+                className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-chip bg-accent hover:opacity-90 active:scale-95 text-bg font-semibold text-xs shadow-lg backdrop-blur-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                aria-label="Open 3D circuit guide"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+                </svg>
+                <span>Show me</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -399,6 +418,13 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         onTryAgain={dismissSheet}
         onSelectExperiment={handleSelectExperiment}
         notice={experimentNotice}
+      />
+
+      {/* 7. Prebuilt 3D Circuit Guide Modal (docs/design.md §3.5) */}
+      <GuideView
+        isOpen={isGuideOpen && status === 'ready' && gateStatus.state === 'lab'}
+        onClose={() => setIsGuideOpen(false)}
+        ruleOutput={ruleOutput}
       />
     </div>
   );
